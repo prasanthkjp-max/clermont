@@ -47,7 +47,7 @@ async def startup_event():
     tasks = [feed.fetch() for feed in feeds.values()]
     await asyncio.gather(*tasks, return_exceptions=True)
     # Start AIS WebSocket background task
-    start_ais_feed()
+    await start_ais_feed()
 
 
 @app.get("/api/events")

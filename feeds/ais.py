@@ -17,6 +17,7 @@ import websockets
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("clermont.ais")
 
 router = APIRouter(prefix="/api/ais", tags=["ais"])
@@ -291,12 +292,12 @@ async def _ais_ws_loop():
 _task: Optional[asyncio.Task] = None
 
 
-def start_ais_feed():
+async def start_ais_feed():
     """Start the AIS WebSocket background task."""
     global _task
     if _task is None or _task.done():
-        loop = asyncio.get_event_loop()
-        _task = loop.create_task(_ais_ws_loop())
+        _task = asyncio.create_task(_ais_ws_loop())
+        logger.info("AIS WebSocket background task started")
     return _task
 
 
