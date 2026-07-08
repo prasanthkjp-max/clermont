@@ -1,0 +1,6 @@
+services:
+  clermont:
+    build: .
+    ports:
+      - "8009:8009"
+    restart: unless-stopped

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLERMONT — WORLD SITUATION MONITOR</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Scanline overlay -->
+    <div id="scanlines"></div>
+    <div id="crt-flicker"></div>
+
+    <!-- Main container -->
+    <div id="app">
+        <!-- Header -->
+        <header id="header">
+            <div class="header-left">
+                <span class="logo">CLERMONT</span>
+                <span class="subtitle">WORLD SITUATION MONITOR</span>
+            </div>
+            <div class="header-right">
+                <span id="clock"></span>
+                <span class="separator">|</span>
+                <span id="last-update">--:--:--</span>
+                <span class="separator">|</span>
+                <span id="signal-count">0 SIGNALS</span>
+            </div>
+        </header>
+
+        <!-- Mode bar -->
+        <nav id="mode-bar">
+            <button class="mode-btn active" data-mode="default" data-key="1">[1] DEFAULT</button>
+            <button class="mode-btn" data-mode="timeline" data-key="T">[T] TIMELINE</button>
+            <button class="mode-btn" data-mode="metrics" data-key="X">[X] METRICS</button>
+            <button class="mode-btn" data-mode="minimal" data-key="Q">[Q] MINIMAL</button>
+            <button class="mode-btn" data-mode="watchlist" data-key="W">[W] WATCHLIST</button>
+        </nav>
+
+        <!-- Main content area -->
+        <main id="main-content">
+            <!-- Default mode: map + panels -->
+            <div id="default-view" class="view active">
+                <div id="map-container">
+                    <div id="ascii-map-wrapper">
+                        <pre id="ascii-map"></pre>
+                        <div id="map-overlay-info">
+                            <span id="map-blip-count">0 BLIPS</span>
+                        </div>
+                    </div>
+                    <button id="open-leaflet" title="Open interactive map">[M] FULLSCREEN MAP</button>
+                </div>
+                <div id="panels-container">
+                    <div class="feed-panel" data-feed="GEO" tabindex="0">
+                        <div class="panel-header">
+                            <span class="panel-tag GEO">GEO</span>
+                            <span class="panel-title">GEOPOLITICAL</span>
+                            <span class="panel-count" id="count-GEO">0</span>
+                        </div>
+                        <div class="panel-body" id="panel-GEO"></div>
+                    </div>
+                    <div class="feed-panel" data-feed="ENV" tabindex="0">
+                        <div class="panel-header">
+                            <span class="panel-tag ENV">ENV</span>
+                            <span class="panel-title">ENVIRONMENT</span>
+                            <span class="panel-count" id="count-ENV">0</span>
+                        </div>
+                        <div class="panel-body" id="panel-ENV"></div>
+                    </div>
+                    <div class="feed-panel" data-feed="MKT" tabindex="0">
+                        <div class="panel-header">
+                            <span class="panel-tag MKT">MKT</span>
+                            <span class="panel-title">MARKETS</span>
+                            <span class="panel-count" id="count-MKT">0</span>
+                        </div>
+                        <div class="panel-body" id="panel-MKT"></div>
+                    </div>
+                    <div class="feed-panel" data-feed="INF" tabindex="0">
+                        <div class="panel-header">
+                            <span class="panel-tag INF">INF</span>
+                            <span class="panel-title">INFORMATION</span>
+                            <span class="panel-count" id="count-INF">0</span>
+                        </div>
+                        <div class="panel-body" id="panel-INF"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Timeline mode -->
+            <div id="timeline-view" class="view">
+                <div class="view-header">TIMELINE — ALL EVENTS BY HOUR</div>
+                <div id="timeline-list"></div>
+            </div>
+
+            <!-- Metrics mode -->
+            <div id="metrics-view" class="view">
+                <div class="view-header">METRICS — SITUATION ANALYSIS</div>
+                <div id="metrics-content"></div>
+            </div>
+
+            <!-- Minimal mode -->
+            <div id="minimal-view" class="view">
+                <div id="minimal-map-wrapper">
+                    <pre id="minimal-ascii-map"></pre>
+                    <div id="minimal-overlay">
+                        <div id="minimal-signal-count">0 SIGNALS</div>
+                        <div id="minimal-feed-summary"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Watchlist mode -->
+            <div id="watchlist-view" class="view">
+                <div class="view-header">WATCHLIST — PINNED EVENTS</div>
+                <div id="watchlist-content"></div>
+            </div>
+
+            <!-- Focused mode -->
+            <div id="focused-view" class="view">
+                <div class="view-header" id="focused-header">FOCUSED — EVENT DETAIL</div>
+                <div id="focused-content"></div>
+            </div>
+        </main>
+
+        <!-- Status bar -->
+        <footer id="status-bar">
+            <div class="status-feeds">
+                <span class="status-feed" data-feed="GEO">GEO: <span class="feed-state">--</span></span>
+                <span class="status-feed" data-feed="ENV">ENV: <span class="feed-state">--</span></span>
+                <span class="status-feed" data-feed="MKT">MKT: <span class="feed-state">--</span></span>
+                <span class="status-feed" data-feed="INF">INF: <span class="feed-state">--</span></span>
+            </div>
+            <div class="status-filters">
+                <span class="filter-label">FILTER:</span>
+                <button class="filter-btn active" data-severity="CRITICAL"><span class="sev-critical">●CRITICAL</span></button>
+                <button class="filter-btn active" data-severity="HIGH"><span class="sev-high">●HIGH</span></button>
+                <button class="filter-btn active" data-severity="MEDIUM"><span class="sev-medium">●MEDIUM</span></button>
+                <button class="filter-btn active" data-severity="LOW"><span class="sev-low">●LOW</span></button>
+            </div>
+        </footer>
+
+        <!-- Event detail drawer -->
+        <div id="detail-drawer">
+            <div class="drawer-header">
+                <span id="detail-title">EVENT DETAIL</span>
+                <button id="detail-close">[ESC] CLOSE</button>
+            </div>
+            <div id="detail-content"></div>
+            <div class="drawer-actions">
+                <button id="detail-map">[M] MAP</button>
+                <button id="detail-watch">[W] WATCH</button>
+                <button id="detail-focus">[F] FOCUS</button>
+                <button id="detail-close-2">[ESC] CLOSE</button>
+            </div>
+        </div>
+
+        <!-- Leaflet fullscreen map overlay -->
+        <div id="leaflet-overlay">
+            <div id="leaflet-header">
+                <span>TACTICAL MAP — CLICK BLIPS FOR DETAILS</span>
+                <button id="leaflet-close">[ESC] CLOSE</button>
+            </div>
+            <div id="leaflet-map"></div>
+        </div>
+
+        <!-- Keyboard help -->
+        <div id="keyboard-hint">
+            <span>[hjkl] NAVIGATE</span>
+            <span>[1-4] PANELS</span>
+            <span>[ENTER] DETAIL</span>
+            <span>[f] FILTER</span>
+            <span>[t/x/q/w] MODES</span>
+            <span>[g/G] FIRST/LAST</span>
+            <span>[ESC] EXIT</span>
+        </div>
+    </div>
+
+    <!-- Scripts (ES modules) -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script type="module" src="/js/app.js"></script>
+</body>
+</html>
