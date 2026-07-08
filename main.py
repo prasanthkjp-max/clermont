@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -108,6 +108,16 @@ app.include_router(ais_router)
 app.mount("/css", StaticFiles(directory=PUBLIC_DIR / "css"), name="css")
 app.mount("/js", StaticFiles(directory=PUBLIC_DIR / "js"), name="js")
 app.mount("/data", StaticFiles(directory=PUBLIC_DIR / "data"), name="data")
+
+
+# Middleware: no-cache for JS/CSS so new deploys are picked up immediately
+@app.middleware("http")
+async def no_cache_static(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path.endswith(".js") or path.endswith(".css"):
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
 
 
 @app.on_event("shutdown")
