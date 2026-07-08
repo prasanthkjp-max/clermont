@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api/ais", tags=["ais"])
 # In-memory vessel store
 # ---------------------------------------------------------------------------
 
-MAX_VESSELS = 5000
+MAX_VESSELS = 50000
 
 
 class VesselStore:
@@ -375,6 +375,24 @@ async def list_vessels(search: Optional[str] = None, page: int = 1, limit: int =
         "page": page,
         "limit": limit,
     })
+
+
+@router.get("/vessels/light")
+async def list_vessels_light():
+    """Lightweight endpoint: only MMSI, name, lat, lng, heading, sog, timestamp.
+    Used for map marker rendering to minimize data transfer."""
+    vessels = await store.all_vessels()
+    light = []
+    for v in vessels:
+        light.append({
+            "m": v.get("mmsi"),
+            "n": v.get("name", ""),
+            "la": v.get("lat"),
+            "lo": v.get("lng"),
+            "h": v.get("heading"),
+            "s": v.get("sog"),
+        })
+    return JSONResponse({"v": light, "c": len(light)})
 
 
 @router.get("/vessels/{mmsi}")
