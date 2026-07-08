@@ -56,6 +56,10 @@ export class KeyboardController {
                 }
                 e.preventDefault();
                 return;
+            case 'v':
+                this.app.setMode('vessels');
+                e.preventDefault();
+                return;
             case 'm':
                 if (this.app.selectedEvent && this.app.selectedEvent.lat != null) {
                     this.app.openLeafletForEvent(this.app.selectedEvent);
@@ -117,6 +121,21 @@ export class KeyboardController {
                     break;
                 case 'enter':
                     this.openSelected();
+                    e.preventDefault();
+                    break;
+            }
+        }
+
+        // Vessel mode navigation keys
+        if (mode === 'vessels') {
+            switch (key) {
+                case 'm':
+                    this.app.openLeaflet();
+                    e.preventDefault();
+                    break;
+                case 'escape':
+                    this.app.closeVesselDetail();
+                    this.app.closeLeaflet();
                     e.preventDefault();
                     break;
             }

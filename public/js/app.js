@@ -2,13 +2,16 @@
 
 import { api } from './api.js';
 import { renderMapWithBlips, buildAsciiMap, buildAsciiMapFromTopojson } from './map-ascii.js';
-import { openLeafletMap, closeLeafletMap, updateLeafletMap, focusLeafletOnEvent } from './map-leaflet.js';
+import { openLeafletMap, closeLeafletMap, updateLeafletMap, focusLeafletOnEvent, updateVesselMarkers, focusOnVessel } from './map-leaflet.js';
 import { renderPanels } from './panels.js';
 import { KeyboardController } from './keyboard.js';
 import { FilterController } from './filter.js';
 import { ModeController } from './modes.js';
 import { WatchlistManager } from './watchlist.js';
 import { DetailController, renderFocusedView } from './detail.js';
+import { aisClient } from './ais.js';
+import { vesselSearch } from './vessel-search.js';
+import { vesselDetail } from './vessel-detail.js';
 
 class ClermontApp {
     constructor() {
@@ -28,6 +31,7 @@ class ClermontApp {
         this.lastUpdateTime = null;
 
         this.bindUI();
+        this.initAIS();
         this.start();
     }
 
@@ -51,6 +55,11 @@ class ClermontApp {
                 panel.classList.add('selected');
             });
         });
+
+        // Vessel selected from map marker click
+        document.addEventListener('clermont:vessel-selected', (e) => {
+            this.openVesselDetail(e.detail.mmsi);
+        });
     }
 
     async start() {
@@ -69,6 +78,54 @@ class ClermontApp {
 
         // Auto-refresh every 60 seconds
         setInterval(() => this.refresh(), 60000);
+    }
+
+    initAIS() {
+        // Initialize vessel search and detail
+        vesselSearch.init();
+        vesselDetail.init();
+
+        // Wire up callbacks
+        vesselSearch.onSelectVessel = (vessel) => {
+            this.openVesselDetail(vessel.mmsi);
+            this.flyToVessel(vessel);
+        };
+
+        vesselDetail.onLocate = (vessel) => {
+            this.flyToVessel(vessel);
+        };
+
+        // AIS status callback
+        aisClient.onStatus = (status, data) => {
+            const stateEl = document.getElementById('ais-feed-state');
+            if (stateEl) {
+                stateEl.textContent = status;
+                stateEl.className = status;
+            }
+            const countEl = document.getElementById('ais-vessel-count');
+            if (countEl) {
+                countEl.textContent = `${data?.vessel_count || aisClient.vesselCount || 0} VESSELS`;
+            }
+        };
+
+        // AIS vessel update callback — update map markers
+        aisClient.onUpdate = (vessel) => {
+            // Only re-render markers if leaflet map is open or we're in vessel mode
+            if (this.currentMode === 'vessels') {
+                this.updateVesselMap();
+            }
+            // Update vessel detail if open
+            if (vesselDetail.isOpen() && vesselDetail.currentMMSI === vessel.mmsi) {
+                vesselDetail.render();
+            }
+            // Update tracked panel
+            if (this.currentMode === 'vessels') {
+                vesselSearch.renderTrackedPanel();
+            }
+        };
+
+        // Connect AIS client
+        aisClient.connect();
     }
 
     startClock() {
@@ -145,6 +202,20 @@ class ClermontApp {
             this.renderWatchlist();
         } else if (this.currentMode === 'focused') {
             renderFocusedView(this.selectedEvent, this.allEvents);
+        } else if (this.currentMode === 'vessels') {
+            this.renderVesselMode();
+        }
+    }
+
+    renderVesselMode() {
+        vesselSearch.renderTrackedPanel();
+        this.updateVesselMap();
+    }
+
+    updateVesselMap() {
+        const vessels = aisClient.getAllVessels();
+        if (vessels.length > 0) {
+            updateVesselMarkers(vessels);
         }
     }
 
@@ -200,6 +271,11 @@ class ClermontApp {
     openLeaflet() {
         const filtered = this.filter.filterEvents(this.allEvents);
         openLeafletMap(filtered);
+        // Also show vessels on the map
+        const vessels = aisClient.getAllVessels();
+        if (vessels.length > 0) {
+            setTimeout(() => updateVesselMarkers(vessels), 200);
+        }
     }
 
     openLeafletForEvent(event) {
@@ -216,6 +292,27 @@ class ClermontApp {
         this.filter.toggle(severity);
         this.filter.updateButtons();
         this.render();
+    }
+
+    // AIS vessel methods
+    openVesselDetail(mmsi) {
+        vesselDetail.open(mmsi);
+    }
+
+    closeVesselDetail() {
+        vesselDetail.close();
+    }
+
+    flyToVessel(vessel) {
+        if (!vessel || vessel.lat == null || vessel.lng == null) return;
+        // Open leaflet if not open
+        const overlay = document.getElementById('leaflet-overlay');
+        if (!overlay.classList.contains('open')) {
+            this.openLeaflet();
+            setTimeout(() => focusOnVessel(vessel), 300);
+        } else {
+            focusOnVessel(vessel);
+        }
     }
 
     // Watchlist

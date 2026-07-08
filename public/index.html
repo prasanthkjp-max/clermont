@@ -38,7 +38,14 @@
             <button class="mode-btn" data-mode="metrics" data-key="X">[X] METRICS</button>
             <button class="mode-btn" data-mode="minimal" data-key="Q">[Q] MINIMAL</button>
             <button class="mode-btn" data-mode="watchlist" data-key="W">[W] WATCHLIST</button>
+            <button class="mode-btn" data-mode="vessels" data-key="V">[V] VESSELS</button>
         </nav>
+
+        <!-- Vessel search bar -->
+        <div id="vessel-search-bar">
+            <input type="text" id="vessel-search-input" placeholder="SEARCH VESSELS: NAME / MMSI / IMO / CALLSIGN..." autocomplete="off">
+            <div id="vessel-search-results"></div>
+        </div>
 
         <!-- Main content area -->
         <main id="main-content">
@@ -118,6 +125,16 @@
                 <div id="watchlist-content"></div>
             </div>
 
+            <!-- Vessel mode -->
+            <div id="vessels-view" class="view">
+                <div id="vessels-view-split">
+                    <div id="vessel-tracked-panel"></div>
+                    <div id="vessel-map-hint">
+                        <span>[M] OPEN TACTICAL MAP TO VIEW VESSELS</span>
+                    </div>
+                </div>
+            </div>
+
             <!-- Focused mode -->
             <div id="focused-view" class="view">
                 <div class="view-header" id="focused-header">FOCUSED — EVENT DETAIL</div>
@@ -140,6 +157,11 @@
                 <button class="filter-btn active" data-severity="MEDIUM"><span class="sev-medium">●MEDIUM</span></button>
                 <button class="filter-btn active" data-severity="LOW"><span class="sev-low">●LOW</span></button>
             </div>
+            <div class="status-ais">
+                <span>AIS: <span id="ais-feed-state">--</span></span>
+                <span class="separator">|</span>
+                <span id="ais-vessel-count">0 VESSELS</span>
+            </div>
         </footer>
 
         <!-- Event detail drawer -->
@@ -154,6 +176,20 @@
                 <button id="detail-watch">[W] WATCH</button>
                 <button id="detail-focus">[F] FOCUS</button>
                 <button id="detail-close-2">[ESC] CLOSE</button>
+            </div>
+        </div>
+
+        <!-- Vessel detail drawer -->
+        <div id="vessel-detail-drawer">
+            <div class="drawer-header">
+                <span id="vessel-detail-title">VESSEL DETAIL</span>
+                <button id="vessel-detail-close">[ESC] CLOSE</button>
+            </div>
+            <div id="vessel-detail-content"></div>
+            <div class="drawer-actions">
+                <button id="vessel-detail-locate">[M] LOCATE ON MAP</button>
+                <button id="vessel-detail-track">[●] TRACK</button>
+                <button id="vessel-detail-close-2">[ESC] CLOSE</button>
             </div>
         </div>
 
@@ -172,7 +208,7 @@
             <span>[1-4] PANELS</span>
             <span>[ENTER] DETAIL</span>
             <span>[f] FILTER</span>
-            <span>[t/x/q/w] MODES</span>
+            <span>[t/x/q/w/v] MODES</span>
             <span>[g/G] FIRST/LAST</span>
             <span>[ESC] EXIT</span>
         </div>

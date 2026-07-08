@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from feeds import Event, GeoFeed, EnvFeed, MarketFeed, InfoFeed
+from feeds.ais import router as ais_router, start_ais_feed, stop_ais_feed
 
 app = FastAPI(title="Clermont — World Situation Monitor", version="1.0.0")
 
@@ -42,9 +43,11 @@ feeds = {
 
 @app.on_event("startup")
 async def startup_event():
-    """Pre-fetch all feeds on startup."""
+    """Pre-fetch all feeds and start AIS WebSocket on startup."""
     tasks = [feed.fetch() for feed in feeds.values()]
     await asyncio.gather(*tasks, return_exceptions=True)
+    # Start AIS WebSocket background task
+    start_ais_feed()
 
 
 @app.get("/api/events")
@@ -98,10 +101,19 @@ async def index():
     return FileResponse(PUBLIC_DIR / "index.html")
 
 
+# AIS feed endpoints
+app.include_router(ais_router)
+
 # Mount static files for CSS, JS, data
 app.mount("/css", StaticFiles(directory=PUBLIC_DIR / "css"), name="css")
 app.mount("/js", StaticFiles(directory=PUBLIC_DIR / "js"), name="js")
 app.mount("/data", StaticFiles(directory=PUBLIC_DIR / "data"), name="data")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Stop AIS WebSocket on shutdown."""
+    stop_ais_feed()
 
 
 if __name__ == "__main__":

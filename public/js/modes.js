@@ -7,7 +7,11 @@ const VIEWS = {
     minimal: 'minimal-view',
     watchlist: 'watchlist-view',
     focused: 'focused-view',
+    vessels: 'vessels-view',
 };
+
+import { vesselSearch } from './vessel-search.js';
+import { vesselDetail } from './vessel-detail.js';
 
 export class ModeController {
     constructor(app) {
@@ -40,6 +44,19 @@ export class ModeController {
 
         this.app.currentMode = mode;
         this.app.render();
+
+        // Show/hide vessel search bar and tracked panel based on mode
+        if (mode === 'vessels') {
+            vesselSearch.show();
+            // Show tracked panel
+            const panel = document.getElementById('vessel-tracked-panel');
+            if (panel) panel.classList.add('show');
+        } else {
+            vesselSearch.hide();
+            vesselDetail.close();
+            const panel = document.getElementById('vessel-tracked-panel');
+            if (panel) panel.classList.remove('show');
+        }
     }
 
     renderTimeline(events, activeFilters) {
