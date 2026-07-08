@@ -45,7 +45,13 @@ class VesselSearch {
 
         // Prevent mode-switching keys when typing in search
         this.searchInput.addEventListener('keydown', (e) => {
-            // Stop propagation so keyboard.js doesn't grab vessel mode keys
+            // Allow mode/map keys to pass through to global handler
+            const modeKeys = ['m', 'M', '1', 't', 'T', 'x', 'X', 'q', 'Q', 'w', 'W', 'v', 'V', 'Escape'];
+            if (modeKeys.includes(e.key)) {
+                // Blur input and let the global handler pick it up
+                this.searchInput.blur();
+                return; // Don't stop propagation
+            }
             e.stopPropagation();
         });
     }

@@ -47,58 +47,47 @@ class AISClient {
         // Fetch feed status
         await this.fetchStatus();
 
-        // Connect SSE stream
-        this._connectSSE();
+        // Poll for vessel updates every 5 seconds (works through Cloudflare, unlike SSE)
+        this._startPolling();
 
         // Periodic status refresh
         setInterval(() => this.fetchStatus(), 30000);
     }
 
-    _connectSSE() {
-        if (this.eventSource) {
-            this.eventSource.close();
+    _startPolling() {
+        if (this._pollInterval) clearInterval(this._pollInterval);
+        this._pollInterval = setInterval(() => this._pollUpdates(), 5000);
+    }
+
+    _stopPolling() {
+        if (this._pollInterval) {
+            clearInterval(this._pollInterval);
+            this._pollInterval = null;
         }
+    }
 
+    async _pollUpdates() {
+        // Fetch latest vessels and update local store
         try {
-            this.eventSource = new EventSource('/api/ais/stream');
-
-            this.eventSource.onmessage = (event) => {
-                try {
-                    const vessel = JSON.parse(event.data);
-                    if (vessel && vessel.mmsi) {
-                        // Merge with existing data (new position report may not have all static data)
-                        const existing = this.vessels.get(vessel.mmsi) || {};
-                        const merged = { ...existing, ...vessel };
-                        this.vessels.set(vessel.mmsi, merged);
-                        this.vesselCount = this.vessels.size;
-
-                        if (this.onUpdate) {
-                            this.onUpdate(merged);
+            const resp = await fetch('/api/ais/vessels?limit=5000');
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.vessels) {
+                    let changed = false;
+                    for (const v of data.vessels) {
+                        const existing = this.vessels.get(v.mmsi);
+                        if (!existing || existing.timestamp !== v.timestamp) {
+                            this.vessels.set(v.mmsi, v);
+                            changed = true;
+                            if (this.onUpdate) this.onUpdate(v);
                         }
                     }
-                } catch (e) {
-                    // ignore parse errors
+                    this.vesselCount = this.vessels.size;
+                    if (changed && this.onBatchUpdate) this.onBatchUpdate();
                 }
-            };
-
-            this.eventSource.onerror = () => {
-                this.status = 'DEGRADED';
-                if (this.onStatus) this.onStatus(this.status);
-                // EventSource will auto-reconnect; just update UI
-            };
-
-            this.eventSource.onopen = () => {
-                if (this.status === 'DEGRADED') {
-                    this.status = 'ONLINE';
-                    if (this.onStatus) this.onStatus(this.status);
-                }
-            };
+            }
         } catch (e) {
-            console.warn('[AIS] SSE connection failed:', e.message);
-            this.status = 'OFFLINE';
-            if (this.onStatus) this.onStatus(this.status);
-            // Retry after delay
-            setTimeout(() => this._connectSSE(), 5000);
+            // silent
         }
     }
 
@@ -185,6 +174,7 @@ class AISClient {
     }
 
     disconnect() {
+        this._stopPolling();
         if (this.eventSource) {
             this.eventSource.close();
             this.eventSource = null;
