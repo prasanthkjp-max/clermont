@@ -4,6 +4,7 @@ let leafletMap = null;
 let leafletLayerGroup = null;
 let vesselLayerGroup = null;
 let vesselMarkers = new Map(); // MMSI -> Leaflet marker
+let _vesselMoveHandler = null;
 
 export function initLeafletMap() {
     if (leafletMap) return leafletMap;
@@ -11,12 +12,12 @@ export function initLeafletMap() {
     const mapEl = document.getElementById('leaflet-map');
     if (!mapEl) return null;
 
-    // Use CartoDB Dark Matter tiles
     leafletMap = L.map(mapEl, {
         center: [20, 0],
-        zoom: 2,
+        zoom: 3,
         worldCopyJump: true,
         attributionControl: false,
+        zoomControl: true,
     });
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -27,17 +28,17 @@ export function initLeafletMap() {
     leafletLayerGroup = L.layerGroup().addTo(leafletMap);
     vesselLayerGroup = L.layerGroup().addTo(leafletMap);
 
+    // Update vessel markers on map move/zoom (debounced)
+    _vesselMoveHandler = L.Util.debounce(() => {
+        _renderVesselsInViewport();
+    }, 300);
+    leafletMap.on('moveend', _vesselMoveHandler);
+    leafletMap.on('zoomend', _vesselMoveHandler);
+
     return leafletMap;
 }
 
 // --- Vessel markers ---
-
-const vesselSeverityColors = {
-    CRITICAL: '#FF2200',
-    HIGH: '#FF6600',
-    MEDIUM: '#FFB000',
-    LOW: '#4A7A00',
-};
 
 function _buildVesselIcon(vessel, isTracked, isSelected) {
     const heading = vessel.heading != null ? vessel.heading : (vessel.cog != null ? vessel.cog : 0);
@@ -77,35 +78,59 @@ async function _getAISClient() {
     return _aisClient;
 }
 
-export function updateVesselMarkers(vessels) {
+// Only render vessels within the current map viewport bounds
+function _renderVesselsInViewport() {
     if (!leafletMap || !vesselLayerGroup) return;
+
+    const bounds = leafletMap.getBounds();
+    const zoom = leafletMap.getZoom();
+
+    // At low zoom (<=4), show fewer markers to avoid clutter — only tracked + nearby
+    // At higher zoom, show all vessels in viewport
+    const allVessels = _aisClient ? _aisClient.getAllVessels() : [];
+    const tracked = _aisClient ? _aisClient.getTrackedVessels() : [];
+
+    // Always include tracked vessels even if outside viewport
+    const vesselList = [...tracked];
+
+    // Filter by viewport bounds
+    let viewportCount = 0;
+    const MAX_MARKERS = 800; // cap to prevent DOM overload
+
+    for (const v of allVessels) {
+        if (v.lat == null || v.lng == null) continue;
+        if (bounds.contains([v.lat, v.lng])) {
+            vesselList.push(v);
+            viewportCount++;
+            if (viewportCount >= MAX_MARKERS) break;
+        }
+    }
 
     const seenMMSI = new Set();
 
-    for (const vessel of vessels) {
+    for (const vessel of vesselList) {
         if (vessel.lat == null || vessel.lng == null) continue;
         const mmsi = vessel.mmsi;
         seenMMSI.add(mmsi);
 
-        // We need to check tracked/selected status — do it synchronously from a cached set
-        // The aisClient.tracked Set and selectedMMSI are available after import
         const isTracked = _aisClient ? _aisClient.isTracked(mmsi) : false;
         const isSelected = _aisClient ? _aisClient.selectedMMSI === mmsi : false;
 
-        const icon = _buildVesselIcon(vessel, isTracked, isSelected);
+        // At low zoom, hide name labels to reduce clutter
+        const showLabel = zoom >= 5 || isTracked || isSelected;
+        const displayName = showLabel ? (vessel.name || '') : '';
+
+        const icon = _buildVesselIcon({ ...vessel, name: displayName }, isTracked, isSelected);
 
         if (vesselMarkers.has(mmsi)) {
-            // Update existing marker
             const marker = vesselMarkers.get(mmsi);
             marker.setLatLng([vessel.lat, vessel.lng]);
             marker.setIcon(icon);
         } else {
-            // Create new marker
             const marker = L.marker([vessel.lat, vessel.lng], { icon: icon, riseOnHover: true });
             marker.on('click', async () => {
                 const ais = await _getAISClient();
                 ais.selectVessel(mmsi);
-                // Open vessel detail
                 const event = new CustomEvent('clermont:vessel-selected', { detail: { mmsi } });
                 document.dispatchEvent(event);
             });
@@ -114,7 +139,7 @@ export function updateVesselMarkers(vessels) {
         }
     }
 
-    // Remove markers for vessels no longer in the list
+    // Remove markers no longer in viewport or list
     for (const [mmsi, marker] of vesselMarkers) {
         if (!seenMMSI.has(mmsi)) {
             vesselLayerGroup.removeLayer(marker);
@@ -123,14 +148,18 @@ export function updateVesselMarkers(vessels) {
     }
 }
 
+export function updateVesselMarkers(vessels) {
+    // Now viewport-based — just trigger a re-render
+    _renderVesselsInViewport();
+}
+
 export function focusOnVessel(vessel) {
     if (!leafletMap) return;
     if (vessel.lat != null && vessel.lng != null) {
         leafletMap.setView([vessel.lat, vessel.lng], 8, { animate: true, duration: 1.5 });
-        // Highlight by opening popup-like marker
+        // Markers will auto-update on moveend
         const marker = vesselMarkers.get(vessel.mmsi);
         if (marker) {
-            // Trigger a brief highlight
             marker.getElement()?.classList?.add('vessel-focused');
             setTimeout(() => marker.getElement()?.classList?.remove('vessel-focused'), 2000);
         }
@@ -156,7 +185,6 @@ export function updateLeafletMap(events) {
 
         const color = severityColors[ev.severity] || '#FFB000';
 
-        // Pulsing circle marker
         const marker = L.circleMarker([ev.lat, ev.lng], {
             radius: 8,
             fillColor: color,
@@ -178,7 +206,6 @@ export function updateLeafletMap(events) {
         `;
         marker.bindPopup(popupHtml, { className: 'clermont-popup' });
 
-        // Add a glow ring for CRITICAL/HIGH
         if (ev.severity === 'CRITICAL' || ev.severity === 'HIGH') {
             L.circleMarker([ev.lat, ev.lng], {
                 radius: 16,
@@ -198,25 +225,18 @@ export function openLeafletMap(events) {
     const overlay = document.getElementById('leaflet-overlay');
     overlay.classList.add('open');
     if (!leafletMap) {
-        // Leaflet might not be loaded yet
         if (typeof L === 'undefined') {
             console.error('[CLERMONT] Leaflet not loaded');
             return;
         }
         initLeafletMap();
     }
-    // Invalidate size after the element becomes visible
     setTimeout(() => {
         if (leafletMap) {
             leafletMap.invalidateSize();
             updateLeafletMap(events);
-            // Also render vessel markers if available
-            _getAISClient().then(ais => {
-                const vessels = ais.getAllVessels();
-                if (vessels.length > 0) {
-                    updateVesselMarkers(vessels);
-                }
-            });
+            // Render vessels in viewport
+            _renderVesselsInViewport();
         }
     }, 100);
 }
@@ -230,7 +250,6 @@ export function focusLeafletOnEvent(ev) {
     if (!leafletMap) return;
     if (ev.lat != null && ev.lng != null) {
         leafletMap.setView([ev.lat, ev.lng], 6);
-        // Highlight the marker
         leafletLayerGroup.eachLayer(layer => {
             if (layer.getLatLng && layer.getLatLng().lat === ev.lat && layer.getLatLng().lng === ev.lng) {
                 layer.openPopup();
