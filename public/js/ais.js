@@ -67,7 +67,8 @@ class AISClient {
 
     _startLightPolling() {
         if (this._pollInterval) clearInterval(this._pollInterval);
-        this._pollInterval = setInterval(() => this._fetchLightVessels(), 10000);
+        // 15s interval — reasonable balance between freshness and bandwidth
+        this._pollInterval = setInterval(() => this._fetchLightVessels(), 15000);
     }
 
     _startFullPolling() {

@@ -379,18 +379,18 @@ async def list_vessels(search: Optional[str] = None, page: int = 1, limit: int =
 
 @router.get("/vessels/light")
 async def list_vessels_light():
-    """Lightweight endpoint: only MMSI, name, lat, lng, heading, sog, timestamp.
+    """Lightweight endpoint: only MMSI, name, lat, lng, heading, sog.
     Used for map marker rendering to minimize data transfer."""
     vessels = await store.all_vessels()
     light = []
     for v in vessels:
         light.append({
             "m": v.get("mmsi"),
-            "n": v.get("name", ""),
-            "la": v.get("lat"),
-            "lo": v.get("lng"),
+            "n": v.get("name", "")[:20],  # truncate name to 20 chars
+            "la": round(v["lat"], 4) if v.get("lat") is not None else None,
+            "lo": round(v["lng"], 4) if v.get("lng") is not None else None,
             "h": v.get("heading"),
-            "s": v.get("sog"),
+            "s": round(v["sog"], 1) if v.get("sog") is not None else None,
         })
     return JSONResponse({"v": light, "c": len(light)})
 
