@@ -171,61 +171,93 @@ sse = SSEManager()
 AIS_WS_URL = "wss://stream.aisstream.io/v0/stream"
 
 
-def _parse_position_report(message: dict) -> Optional[dict]:
-    """Extract vessel data from an aisstream.io message."""
+def _parse_ais_message(raw_data) -> Optional[dict]:
+    """Extract vessel data from an aisstream.io message.
+
+    Messages arrive as BINARY frames containing JSON with keys:
+    Message, MessageType, MetaData
+    """
     try:
+        # Messages come as bytes (binary WebSocket frames)
+        if isinstance(raw_data, (bytes, bytearray)):
+            raw_data = raw_data.decode('utf-8')
+        message = json.loads(raw_data)
+
+        msg_type = message.get("MessageType", "")
         meta = message.get("MetaData", {})
-        payload = message.get("Payload", {})
-        if not payload:
-            return None
+        inner = message.get("Message", {})
 
-        pr = payload.get("PositionReport", {})
-        if not pr:
-            return None
+        if msg_type == "PositionReport":
+            pr = inner.get("PositionReport", {})
+            if not pr:
+                return None
 
-        mmsi = meta.get("MMSI") or pr.get("MMSI")
-        if not mmsi:
-            return None
+            mmsi = meta.get("MMSI") or pr.get("UserID")
+            if not mmsi:
+                return None
 
-        lat = pr.get("Latitude")
-        lng = pr.get("Longitude")
-        if lat is None or lng is None:
-            return None
+            lat = pr.get("Latitude")
+            lng = pr.get("Longitude")
+            if lat is None or lng is None:
+                return None
 
-        sog = pr.get("Sog")  # knots
-        cog = pr.get("Cog")  # degrees
-        heading = pr.get("TrueHeading") if pr.get("TrueHeading") != 511 else None
-        nav_status = pr.get("NavigationalStatus")
+            sog = pr.get("Sog")  # knots
+            cog = pr.get("Cog")  # degrees
+            heading = pr.get("TrueHeading")
+            if heading == 511:
+                heading = None
+            nav_status = pr.get("NavigationalStatus")
 
-        ship_data = payload.get("ShipData", {})
-        static_data = payload.get("StaticData", {})
+            name = meta.get("ShipName", "")
+            if name:
+                name = name.strip()
 
-        name = meta.get("ShipName") or ship_data.get("ShipName") or static_data.get("ShipName")
-        if name:
-            name = name.strip()
+            return {
+                "mmsi": int(mmsi),
+                "name": name or "",
+                "lat": float(lat),
+                "lng": float(lng),
+                "sog": float(sog) if sog is not None else None,
+                "cog": float(cog) if cog is not None else None,
+                "heading": float(heading) if heading is not None else None,
+                "nav_status": int(nav_status) if nav_status is not None else None,
+                "timestamp": meta.get("time_utc") or datetime.now(timezone.utc).isoformat(),
+                "destination": "",
+                "eta": "",
+                "ship_type": "",
+                "imo": "",
+                "callsign": "",
+            }
 
-        destination = ship_data.get("Destination") or static_data.get("Destination")
-        eta = ship_data.get("Eta") or static_data.get("Eta")
-        ship_type = ship_data.get("ShipType") or static_data.get("ShipType")
-        imo = ship_data.get("ImoNumber") or static_data.get("ImoNumber")
-        callsign = ship_data.get("CallSign") or static_data.get("CallSign")
+        elif msg_type in ("ShipData", "StaticData"):
+            sd = inner.get("ShipData", inner.get("StaticData", inner))
+            mmsi = meta.get("MMSI") or sd.get("UserID")
+            if not mmsi:
+                return None
 
-        return {
-            "mmsi": int(mmsi),
-            "name": name or "",
-            "lat": float(lat),
-            "lng": float(lng),
-            "sog": float(sog) if sog is not None else None,
-            "cog": float(cog) if cog is not None else None,
-            "heading": float(heading) if heading is not None else None,
-            "nav_status": int(nav_status) if nav_status is not None else None,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "destination": destination or "",
-            "eta": str(eta) if eta else "",
-            "ship_type": str(ship_type) if ship_type else "",
-            "imo": str(imo) if imo else "",
-            "callsign": str(callsign) if callsign else "",
-        }
+            name = meta.get("ShipName", "") or sd.get("ShipName", "")
+            if name:
+                name = name.strip()
+
+            return {
+                "mmsi": int(mmsi),
+                "name": name or "",
+                "lat": None,
+                "lng": None,
+                "sog": None,
+                "cog": None,
+                "heading": None,
+                "nav_status": None,
+                "timestamp": meta.get("time_utc") or datetime.now(timezone.utc).isoformat(),
+                "destination": sd.get("Destination", "") or "",
+                "eta": str(sd.get("Eta", "")) if sd.get("Eta") else "",
+                "ship_type": str(sd.get("ShipType", "")) if sd.get("ShipType") else "",
+                "imo": str(sd.get("ImoNumber", "")) if sd.get("ImoNumber") else "",
+                "callsign": str(sd.get("CallSign", "")) if sd.get("CallSign") else "",
+                "_partial": True,  # merge with existing vessel data
+            }
+
+        return None
     except Exception as e:
         logger.debug("Error parsing AIS message: %s", e)
         return None
@@ -248,7 +280,6 @@ async def _ais_ws_loop():
             subscribe_msg = {
                 "APIKey": api_key,
                 "BoundingBoxes": [[[-90, -180], [90, 180]]],
-                "FilterMessageTypes": ["PositionReport"],
             }
 
             async with websockets.connect(
@@ -265,16 +296,33 @@ async def _ais_ws_loop():
 
                 async for raw in ws:
                     try:
-                        msg = json.loads(raw)
-                        parsed = _parse_position_report(msg)
+                        parsed = _parse_ais_message(raw)
                         if parsed:
                             mmsi = parsed["mmsi"]
-                            await store.upsert(mmsi, parsed)
-                            feed.last_message_time = time.time()
-                            feed.message_count += 1
-                            await sse.broadcast(parsed)
-                    except json.JSONDecodeError:
-                        pass
+                            # Handle partial updates (ShipData messages)
+                            if parsed.get("_partial"):
+                                existing = await store.get(mmsi)
+                                if existing:
+                                    # Merge: update only non-None fields
+                                    for k, v in parsed.items():
+                                        if k == "_partial":
+                                            continue
+                                        if v is not None and v != "":
+                                            existing[k] = v
+                                    await store.upsert(mmsi, existing)
+                                    # Broadcast merged vessel
+                                    await sse.broadcast(existing)
+                                else:
+                                    # Store as-is, will be enriched by PositionReport later
+                                    parsed.pop("_partial", None)
+                                    await store.upsert(mmsi, parsed)
+                                    await sse.broadcast(parsed)
+                            else:
+                                # Full PositionReport — upsert and broadcast
+                                await store.upsert(mmsi, parsed)
+                                feed.last_message_time = time.time()
+                                feed.message_count += 1
+                                await sse.broadcast(parsed)
                     except Exception as e:
                         logger.debug("Error processing AIS message: %s", e)
 
