@@ -1,6 +1,6 @@
 // vessel-search.js — Vessel search & tracking UI
 
-import { aisClient } from './ais.js?v=4';
+import { aisClient } from './ais.js?v=5';
 
 class VesselSearch {
     constructor() {

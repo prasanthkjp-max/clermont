@@ -859,19 +859,25 @@ html, body {
 
 #leaflet-toggle-traffic {
     background: transparent;
-    border: 1px solid var(--border-bright);
+    border: 1px solid var(--border);
     color: var(--amber-dim);
-    padding: 4px 10px;
     font-family: var(--mono);
     font-size: 11px;
+    padding: 2px 8px;
     cursor: pointer;
     letter-spacing: 1px;
     transition: all 0.2s;
 }
 
 #leaflet-toggle-traffic:hover {
-    border-color: var(--amber);
     color: var(--amber);
+    border-color: var(--amber);
+}
+
+#leaflet-toggle-traffic.active {
+    color: var(--amber-bright);
+    border-color: var(--amber);
+    background: rgba(255,176,0,0.08);
 }
 
 #leaflet-map {

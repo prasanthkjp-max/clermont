@@ -1,17 +1,17 @@
 // app.js — Main application controller for Clermont World Situation Monitor
 
-import { api } from './api.js?v=4';
-import { renderMapWithBlips, buildAsciiMap, buildAsciiMapFromTopojson } from './map-ascii.js?v=4';
-import { openLeafletMap, closeLeafletMap, updateLeafletMap, focusLeafletOnEvent, updateVesselMarkers, focusOnVessel, toggleAllVesselTraffic, isShowingAllTraffic } from './map-leaflet.js?v=4';
-import { renderPanels } from './panels.js?v=4';
-import { KeyboardController } from './keyboard.js?v=4';
-import { FilterController } from './filter.js?v=4';
-import { ModeController } from './modes.js?v=4';
-import { WatchlistManager } from './watchlist.js?v=4';
-import { DetailController, renderFocusedView } from './detail.js?v=4';
-import { aisClient } from './ais.js?v=4';
-import { vesselSearch } from './vessel-search.js?v=4';
-import { vesselDetail } from './vessel-detail.js?v=4';
+import { api } from './api.js?v=5';
+import { renderMapWithBlips, buildAsciiMap, buildAsciiMapFromTopojson } from './map-ascii.js?v=5';
+import { openLeafletMap, closeLeafletMap, updateLeafletMap, focusLeafletOnEvent, updateVesselMarkers, focusOnVessel, toggleAllVesselTraffic, isShowingAllTraffic } from './map-leaflet.js?v=5';
+import { renderPanels } from './panels.js?v=5';
+import { KeyboardController } from './keyboard.js?v=5';
+import { FilterController } from './filter.js?v=5';
+import { ModeController } from './modes.js?v=5';
+import { WatchlistManager } from './watchlist.js?v=5';
+import { DetailController, renderFocusedView } from './detail.js?v=5';
+import { aisClient } from './ais.js?v=5';
+import { vesselSearch } from './vessel-search.js?v=5';
+import { vesselDetail } from './vessel-detail.js?v=5';
 
 class ClermontApp {
     constructor() {

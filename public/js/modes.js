@@ -10,8 +10,8 @@ const VIEWS = {
     vessels: 'vessels-view',
 };
 
-import { vesselSearch } from './vessel-search.js?v=4';
-import { vesselDetail } from './vessel-detail.js?v=4';
+import { vesselSearch } from './vessel-search.js?v=5';
+import { vesselDetail } from './vessel-detail.js?v=5';
 
 export class ModeController {
     constructor(app) {

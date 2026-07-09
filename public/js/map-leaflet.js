@@ -57,10 +57,16 @@ export function isShowingAllTraffic() {
 export function toggleAllVesselTraffic() {
     _showAllVesselTraffic = !_showAllVesselTraffic;
     _renderVesselsInViewport();
-    // Update button label
+    // Update button label and class
     const btn = document.getElementById('leaflet-toggle-traffic');
     if (btn) {
-        btn.textContent = _showAllVesselTraffic ? '[●] ALL TRAFFIC: ON' : '[○] ALL TRAFFIC: OFF';
+        if (_showAllVesselTraffic) {
+            btn.textContent = '[●] ALL TRAFFIC: ON';
+            btn.classList.add('active');
+        } else {
+            btn.textContent = '[○] ALL TRAFFIC: OFF';
+            btn.classList.remove('active');
+        }
     }
     return _showAllVesselTraffic;
 }
