@@ -1,6 +1,9 @@
 // vessel-search.js — Vessel search & tracking UI
 
-import { aisClient } from './ais.js?v=5';
+import { aisClient } from './ais.js?v=6';
+
+// Global flag: when true, the keyboard controller should ignore all keys
+window._vesselSearchActive = false;
 
 class VesselSearch {
     constructor() {
@@ -35,31 +38,33 @@ class VesselSearch {
 
         // Focus the search bar
         this.searchInput.addEventListener('focus', () => {
+            window._vesselSearchActive = true;
             if (this.searchInput.value.trim().length > 0) {
                 this.showResults();
             }
         });
 
+        // Blur: deactivate search mode
+        this.searchInput.addEventListener('blur', () => {
+            // Small delay so clicking a result still works
+            setTimeout(() => {
+                window._vesselSearchActive = false;
+            }, 200);
+        });
+
         // Keyboard navigation in results
         this.searchInput.addEventListener('keydown', (e) => this.handleSearchKey(e));
-
-        // Stop propagation on all keydown events in the search input
-        // so the global keyboard handler never sees them.
-        // The global handler also checks for INPUT tagName, but this is
-        // a belt-and-suspenders approach to prevent mode shortcuts from
-        // firing while typing (e.g. typing 'M' in "MSC" should NOT open the map).
-        this.searchInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                this.searchInput.blur();
-                this.hideResults();
-                e.stopPropagation();
-                return;
-            }
-            e.stopPropagation();
-        });
     }
 
     handleSearchKey(e) {
+        // Escape: blur and close results
+        if (e.key === 'Escape') {
+            this.searchInput.blur();
+            this.hideResults();
+            e.preventDefault();
+            return;
+        }
+
         if (this.activeResults.length === 0) return;
 
         switch (e.key) {
@@ -79,10 +84,6 @@ class VesselSearch {
                     this.selectVessel(this.activeResults[this.resultIndex]);
                 }
                 break;
-            case 'Escape':
-                this.hideResults();
-                this.searchInput.blur();
-                break;
         }
     }
 
@@ -94,10 +95,16 @@ class VesselSearch {
             return;
         }
 
-        const results = await aisClient.searchVessels(query);
-        this.activeResults = results;
-        this.resultIndex = -1;
-        this.showResults();
+        try {
+            const results = await aisClient.searchVessels(query);
+            this.activeResults = results;
+            this.resultIndex = -1;
+            this.showResults();
+        } catch (e) {
+            console.error('[AIS] Search error:', e);
+            this.activeResults = [];
+            this.showResults();
+        }
     }
 
     showResults() {
@@ -255,6 +262,8 @@ class VesselSearch {
         const panel = document.getElementById('vessel-tracked-panel');
         if (panel) panel.style.display = 'none';
         this.hideResults();
+        // Deactivate search mode
+        window._vesselSearchActive = false;
     }
 }
 

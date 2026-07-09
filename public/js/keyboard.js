@@ -16,6 +16,8 @@ export class KeyboardController {
     handleKey(e) {
         // Don't interfere with input fields
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        // Don't interfere when vessel search is active (even if focus somehow left the input)
+        if (window._vesselSearchActive) return;
 
         const key = e.key.toLowerCase();
         const mode = this.app.currentMode;
