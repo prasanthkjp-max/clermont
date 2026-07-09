@@ -1,6 +1,6 @@
 // api.js — API client for Clermont backend
 
-import { MOCK_EVENTS } from './mock-data.js?v=3';
+import { MOCK_EVENTS } from './mock-data.js?v=4';
 
 const API_BASE = '';
 

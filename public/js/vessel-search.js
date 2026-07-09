@@ -1,6 +1,6 @@
 // vessel-search.js — Vessel search & tracking UI
 
-import { aisClient } from './ais.js?v=3';
+import { aisClient } from './ais.js?v=4';
 
 class VesselSearch {
     constructor() {
@@ -43,14 +43,17 @@ class VesselSearch {
         // Keyboard navigation in results
         this.searchInput.addEventListener('keydown', (e) => this.handleSearchKey(e));
 
-        // Prevent mode-switching keys when typing in search
+        // Stop propagation on all keydown events in the search input
+        // so the global keyboard handler never sees them.
+        // The global handler also checks for INPUT tagName, but this is
+        // a belt-and-suspenders approach to prevent mode shortcuts from
+        // firing while typing (e.g. typing 'M' in "MSC" should NOT open the map).
         this.searchInput.addEventListener('keydown', (e) => {
-            // Allow mode/map keys to pass through to global handler
-            const modeKeys = ['m', 'M', '1', 't', 'T', 'x', 'X', 'q', 'Q', 'w', 'W', 'v', 'V', 'Escape'];
-            if (modeKeys.includes(e.key)) {
-                // Blur input and let the global handler pick it up
+            if (e.key === 'Escape') {
                 this.searchInput.blur();
-                return; // Don't stop propagation
+                this.hideResults();
+                e.stopPropagation();
+                return;
             }
             e.stopPropagation();
         });

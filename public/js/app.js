@@ -1,17 +1,17 @@
 // app.js — Main application controller for Clermont World Situation Monitor
 
-import { api } from './api.js?v=3';
-import { renderMapWithBlips, buildAsciiMap, buildAsciiMapFromTopojson } from './map-ascii.js?v=3';
-import { openLeafletMap, closeLeafletMap, updateLeafletMap, focusLeafletOnEvent, updateVesselMarkers, focusOnVessel } from './map-leaflet.js?v=3';
-import { renderPanels } from './panels.js?v=3';
-import { KeyboardController } from './keyboard.js?v=3';
-import { FilterController } from './filter.js?v=3';
-import { ModeController } from './modes.js?v=3';
-import { WatchlistManager } from './watchlist.js?v=3';
-import { DetailController, renderFocusedView } from './detail.js?v=3';
-import { aisClient } from './ais.js?v=3';
-import { vesselSearch } from './vessel-search.js?v=3';
-import { vesselDetail } from './vessel-detail.js?v=3';
+import { api } from './api.js?v=4';
+import { renderMapWithBlips, buildAsciiMap, buildAsciiMapFromTopojson } from './map-ascii.js?v=4';
+import { openLeafletMap, closeLeafletMap, updateLeafletMap, focusLeafletOnEvent, updateVesselMarkers, focusOnVessel, toggleAllVesselTraffic, isShowingAllTraffic } from './map-leaflet.js?v=4';
+import { renderPanels } from './panels.js?v=4';
+import { KeyboardController } from './keyboard.js?v=4';
+import { FilterController } from './filter.js?v=4';
+import { ModeController } from './modes.js?v=4';
+import { WatchlistManager } from './watchlist.js?v=4';
+import { DetailController, renderFocusedView } from './detail.js?v=4';
+import { aisClient } from './ais.js?v=4';
+import { vesselSearch } from './vessel-search.js?v=4';
+import { vesselDetail } from './vessel-detail.js?v=4';
 
 class ClermontApp {
     constructor() {
@@ -46,6 +46,12 @@ class ClermontApp {
         const closeBtn = document.getElementById('leaflet-close');
         if (closeBtn) {
             closeBtn.addEventListener('click', () => this.closeLeaflet());
+        }
+
+        // Toggle all vessel traffic button
+        const trafficBtn = document.getElementById('leaflet-toggle-traffic');
+        if (trafficBtn) {
+            trafficBtn.addEventListener('click', () => toggleAllVesselTraffic());
         }
 
         // Feed panel click events
@@ -213,10 +219,9 @@ class ClermontApp {
     }
 
     updateVesselMap() {
-        const vessels = aisClient.getAllVessels();
-        if (vessels.length > 0) {
-            updateVesselMarkers(vessels);
-        }
+        // Only render tracked/selected vessels on the map
+        // (canvas layer with all traffic is controlled by the toggle)
+        updateVesselMarkers([]);
     }
 
     renderWatchlist() {
@@ -271,11 +276,8 @@ class ClermontApp {
     openLeaflet() {
         const filtered = this.filter.filterEvents(this.allEvents);
         openLeafletMap(filtered);
-        // Also show vessels on the map
-        const vessels = aisClient.getAllVessels();
-        if (vessels.length > 0) {
-            setTimeout(() => updateVesselMarkers(vessels), 200);
-        }
+        // Only show tracked/pinned vessels by default (not all 10K+ vessels)
+        setTimeout(() => updateVesselMarkers([]), 200);
     }
 
     openLeafletForEvent(event) {

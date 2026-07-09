@@ -1,6 +1,6 @@
 // map-leaflet.js — Leaflet fullscreen map overlay
-// Uses canvas-based rendering for vessel markers (performance: 10K+ markers at 60fps)
-// DOM markers only for tracked/selected vessels (interactivity + pulse animation)
+// Canvas-based rendering for vessel markers
+// By default: only show tracked/pinned vessels. Toggle to show all traffic.
 
 let leafletMap = null;
 let leafletLayerGroup = null;
@@ -8,6 +8,7 @@ let vesselLayerGroup = null;       // DOM layer for tracked/selected
 let vesselCanvasLayer = null;      // Canvas layer for bulk vessels
 let vesselMarkers = new Map();     // MMSI -> Leaflet marker (DOM, tracked/selected only)
 let _vesselMoveHandler = null;
+let _showAllVesselTraffic = false;  // Toggle: false = only tracked, true = all traffic
 
 export function initLeafletMap() {
     if (leafletMap) return leafletMap;
@@ -21,7 +22,6 @@ export function initLeafletMap() {
         worldCopyJump: true,
         attributionControl: false,
         zoomControl: true,
-        // Use canvas renderer for better performance with many markers
         preferCanvas: true,
     });
 
@@ -47,6 +47,25 @@ export function initLeafletMap() {
 }
 
 // ---------------------------------------------------------------------------
+// "Show all traffic" toggle
+// ---------------------------------------------------------------------------
+
+export function isShowingAllTraffic() {
+    return _showAllVesselTraffic;
+}
+
+export function toggleAllVesselTraffic() {
+    _showAllVesselTraffic = !_showAllVesselTraffic;
+    _renderVesselsInViewport();
+    // Update button label
+    const btn = document.getElementById('leaflet-toggle-traffic');
+    if (btn) {
+        btn.textContent = _showAllVesselTraffic ? '[●] ALL TRAFFIC: ON' : '[○] ALL TRAFFIC: OFF';
+    }
+    return _showAllVesselTraffic;
+}
+
+// ---------------------------------------------------------------------------
 // Custom Canvas Layer for bulk vessel rendering
 // ---------------------------------------------------------------------------
 
@@ -54,7 +73,7 @@ const VesselCanvasLayer = L.Layer.extend({
     initialize: function() {
         this._canvas = null;
         this._ctx = null;
-        this._vessels = []; // vessels to draw
+        this._vessels = [];
     },
 
     onAdd: function(map) {
@@ -102,13 +121,15 @@ const VesselCanvasLayer = L.Layer.extend({
         const ctx = this._ctx;
         ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
 
+        if (this._vessels.length === 0) return;
+
         const zoom = this._map.getZoom();
         const bounds = this._map.getBounds();
         const showLabels = zoom >= 6;
         const arrowSize = zoom <= 3 ? 4 : zoom <= 5 ? 6 : 8;
 
         let drawn = 0;
-        const MAX_CANVAS_VESSELS = 5000; // canvas can handle way more than DOM
+        const MAX_CANVAS_VESSELS = 5000;
 
         for (const v of this._vessels) {
             if (v.lat == null || v.lng == null) continue;
@@ -118,24 +139,23 @@ const VesselCanvasLayer = L.Layer.extend({
             if (point.x < -20 || point.x > size.x + 20 || point.y < -20 || point.y > size.y + 20) continue;
 
             const heading = v.heading != null ? v.heading : (v.cog != null ? v.cog : 0);
-            const rad = (heading - 90) * Math.PI / 180; // Convert to canvas rotation
+            const rad = (heading - 90) * Math.PI / 180;
 
             // Draw arrow on canvas
             ctx.save();
             ctx.translate(point.x, point.y);
             ctx.rotate(rad);
 
-            // Arrow shape
             ctx.beginPath();
-            ctx.moveTo(arrowSize, 0);           // tip
+            ctx.moveTo(arrowSize, 0);
             ctx.lineTo(-arrowSize * 0.6, arrowSize * 0.5);
             ctx.lineTo(-arrowSize * 0.3, 0);
             ctx.lineTo(-arrowSize * 0.6, -arrowSize * 0.5);
             ctx.closePath();
 
-            ctx.fillStyle = 'rgba(255, 176, 0, 0.7)';
+            ctx.fillStyle = 'rgba(255, 176, 0, 0.6)';
             ctx.fill();
-            ctx.strokeStyle = 'rgba(255, 176, 0, 0.9)';
+            ctx.strokeStyle = 'rgba(255, 176, 0, 0.85)';
             ctx.lineWidth = 0.5;
             ctx.stroke();
 
@@ -144,7 +164,7 @@ const VesselCanvasLayer = L.Layer.extend({
             // Draw name label at higher zoom
             if (showLabels && v.name) {
                 ctx.font = '9px "Share Tech Mono", monospace';
-                ctx.fillStyle = 'rgba(255, 176, 0, 0.8)';
+                ctx.fillStyle = 'rgba(255, 176, 0, 0.75)';
                 ctx.textAlign = 'center';
                 ctx.fillText(v.name.substring(0, 18), point.x, point.y + arrowSize + 10);
             }
@@ -156,7 +176,7 @@ const VesselCanvasLayer = L.Layer.extend({
 });
 
 // ---------------------------------------------------------------------------
-// Vessel rendering — canvas for bulk, DOM for tracked/selected
+// Vessel rendering — canvas for bulk (when toggled), DOM for tracked/selected
 // ---------------------------------------------------------------------------
 
 function _escapeHtml(str) {
@@ -197,30 +217,36 @@ async function _getAISClient() {
     return _aisClient;
 }
 
-// Render vessels: canvas for bulk, DOM for tracked/selected
+// Render vessels: canvas for bulk (only if toggle on), DOM for tracked/selected
 function _renderVesselsInViewport() {
     if (!leafletMap) return;
 
-    const allVessels = _aisClient ? _aisClient.getAllVessels() : [];
     const tracked = _aisClient ? _aisClient.getTrackedVessels() : [];
 
-    // --- Canvas layer: draw all vessels (non-tracked, non-selected) ---
-    const canvasVessels = [];
-    for (const v of allVessels) {
-        if (v.lat == null || v.lng == null) continue;
-        const isTracked = _aisClient ? _aisClient.isTracked(v.mmsi) : false;
-        const isSelected = _aisClient ? _aisClient.selectedMMSI === v.mmsi : false;
-        if (!isTracked && !isSelected) {
-            canvasVessels.push(v);
+    // --- Canvas layer: only draw bulk vessels if toggle is ON ---
+    if (_showAllVesselTraffic && _aisClient) {
+        const allVessels = _aisClient.getAllVessels();
+        const canvasVessels = [];
+        for (const v of allVessels) {
+            if (v.lat == null || v.lng == null) continue;
+            const isTracked = _aisClient.isTracked(v.mmsi);
+            const isSelected = _aisClient.selectedMMSI === v.mmsi;
+            if (!isTracked && !isSelected) {
+                canvasVessels.push(v);
+            }
+        }
+        if (vesselCanvasLayer) {
+            vesselCanvasLayer.setVessels(canvasVessels);
+        }
+    } else {
+        // Toggle off: clear canvas
+        if (vesselCanvasLayer) {
+            vesselCanvasLayer.setVessels([]);
         }
     }
-    if (vesselCanvasLayer) {
-        vesselCanvasLayer.setVessels(canvasVessels);
-    }
 
-    // --- DOM layer: only tracked + selected vessels (typically < 20) ---
+    // --- DOM layer: tracked + selected vessels (always shown) ---
     const domVessels = [...tracked];
-    // Also add selected vessel if not already in tracked
     if (_aisClient && _aisClient.selectedMMSI != null) {
         const sel = _aisClient.getVessel(_aisClient.selectedMMSI);
         if (sel && !_aisClient.isTracked(_aisClient.selectedMMSI)) {

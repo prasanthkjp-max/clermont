@@ -197,7 +197,10 @@
         <div id="leaflet-overlay">
             <div id="leaflet-header">
                 <span>TACTICAL MAP — CLICK BLIPS FOR DETAILS</span>
-                <button id="leaflet-close">[ESC] CLOSE</button>
+                <div id="leaflet-header-controls">
+                    <button id="leaflet-toggle-traffic" title="Toggle showing all vessel traffic on map">[O] ALL TRAFFIC: OFF</button>
+                    <button id="leaflet-close">[ESC] CLOSE</button>
+                </div>
             </div>
             <div id="leaflet-map"></div>
         </div>
@@ -216,6 +219,6 @@
 
     <!-- Scripts (ES modules) -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script type="module" src="/js/app.js?v=3"></script>
+    <script type="module" src="/js/app.js?v=4"></script>
 </body>
 </html>

@@ -851,6 +851,29 @@ html, body {
     flex-shrink: 0;
 }
 
+#leaflet-header-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+#leaflet-toggle-traffic {
+    background: transparent;
+    border: 1px solid var(--border-bright);
+    color: var(--amber-dim);
+    padding: 4px 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+}
+
+#leaflet-toggle-traffic:hover {
+    border-color: var(--amber);
+    color: var(--amber);
+}
+
 #leaflet-map {
     flex: 1;
     background: #0a0a0a;

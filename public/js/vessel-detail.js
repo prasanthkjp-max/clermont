@@ -1,6 +1,6 @@
 // vessel-detail.js — Vessel detail slide-up drawer
 
-import { aisClient } from './ais.js?v=3';
+import { aisClient } from './ais.js?v=4';
 
 class VesselDetail {
     constructor() {
