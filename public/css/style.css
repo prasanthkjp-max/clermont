@@ -1146,7 +1146,12 @@ html, body {
     background: rgba(255,176,0,0.1);
 }
 
-/* Leaflet vessel markers */
+/* Canvas vessel layer — no pointer events, sits below DOM markers */
+.leaflet-vessel-canvas-layer {
+    pointer-events: none;
+}
+
+/* Leaflet vessel markers (DOM — tracked/selected only) */
 .vessel-marker {
     background: transparent;
     border: none;
